@@ -28,7 +28,7 @@ end
 
 local create_autocmds = function()
 	autocmd("BufModifiedSet", {
-		pattern = { "*.js", "*.mjs", "*.cjs" },
+		pattern = { "*.js", "*.mjs", "*.cjs", "*.ts" },
 		desc = "Update playground on file write if playground is open",
 		group = vim.api.nvim_create_augroup("JSPlaygroundUpdater", { clear = false }),
 		callback = function()
