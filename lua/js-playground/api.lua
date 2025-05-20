@@ -34,7 +34,7 @@ local function winbuf_handler()
 end
 
 local is_supported_filetype = function()
-	local supported_ft = { "javascript", "mjs", "cjs" }
+	local supported_ft = { "javascript", "mjs", "cjs", "typescript" }
 	for _, ft in ipairs(supported_ft) do
 		if vim.bo.ft == ft then
 			return true
@@ -43,16 +43,76 @@ local is_supported_filetype = function()
 	return false
 end
 
+local is_version_gte = function(v1, v2)
+	for i = 1, math.max(#v1, #v2) do
+		local n1 = v1[i] or 0
+		local n2 = v2[i] or 0
+		if n1 > n2 then
+			return true
+		elseif n1 < n2 then
+			return false
+		end
+	end
+	return true
+end
+
+local get_typescript_version = function()
+	local handle = io.popen("node -v 2>/dev/null")
+	if handle then
+		local version = handle:read("*a")
+		handle:close()
+		version:gsub("^v", "")
+		return version
+	end
+	return ""
+end
+
+local can_run_typescript = function(v)
+	local t = {}
+	for num in v:gmatch("%d+") do
+		table.insert(t, tonumber(num))
+	end
+	if is_version_gte(t, { 22, 6, 0 }) then
+		return true
+	else
+		return false
+	end
+end
+
+local get_typescript_tags = function(v)
+	local t = {}
+	for num in v:gmatch("%d+") do
+		table.insert(t, tonumber(num))
+	end
+	if is_version_gte(t, { 22, 7, 0 }) then
+		return "--experimental-transform-types "
+	elseif is_version_gte(t, { 22, 6, 0 }) then
+		return "--experimental-strip-types "
+	end
+	return ""
+end
+
 local run_js_code = function()
 	if not is_supported_filetype() then
 		utils.notify(" ⛔", "JSPlayground: File is not .js, .mjs nor .cjs", vim.log.levels.WARN)
 		return
 	end
 
+	local ts_arg = ""
+	if vim.bo.ft == "typescript" then
+		local v = get_typescript_version()
+		if can_run_typescript(v) then
+			ts_arg = get_typescript_tags(v)
+		else
+			utils.notify(" ⛔", "JSPlayground: Update your node version to support typescript", vim.log.levels.WARN)
+			return
+		end
+	end
+
 	utils.set_status(true)
 	local current_file = vim.fn.expand("%:p")
 	local start_time = vim.uv.hrtime()
-	local cmd = "node " .. current_file .. " 2>&1"
+	local cmd = "node " .. ts_arg .. current_file .. " 2>&1"
 	local output = vim.fn.system(cmd)
 	local end_time = vim.uv.hrtime()
 	local elapsed_ms = (end_time - start_time) / 1e6 -- it's nanoseconds
